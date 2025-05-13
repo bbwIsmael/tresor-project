@@ -2,6 +2,8 @@ package ch.bbw.pr.tresorbackend.controller;
 
 import ch.bbw.pr.tresorbackend.model.ConfigProperties;
 import ch.bbw.pr.tresorbackend.model.EmailAdress;
+import ch.bbw.pr.tresorbackend.model.LoginUser;
+import ch.bbw.pr.tresorbackend.model.LoginResponse;
 import ch.bbw.pr.tresorbackend.model.RegisterUser;
 import ch.bbw.pr.tresorbackend.model.User;
 import ch.bbw.pr.tresorbackend.service.PasswordEncryptionService;
@@ -123,7 +125,7 @@ public class UserController {
    public ResponseEntity<User> updateUser(@PathVariable("id") Long userId,
                                           @RequestBody User user) {
       user.setId(userId);
-      User updatedUser = userService.updateUser(user);
+      User updatedUser = userService.updateUser(userId, user);
       return new ResponseEntity<>(updatedUser, HttpStatus.OK);
    }
 
@@ -176,6 +178,36 @@ public class UserController {
       String json = new Gson().toJson(obj);
       System.out.println("UserController.getUserIdByEmail " + json);
       return ResponseEntity.accepted().body(json);
+   }
+
+   // Add login endpoint
+   @CrossOrigin(origins = "${CROSS_ORIGIN}")
+   @PostMapping("/login")
+   public ResponseEntity<LoginResponse> loginUser(@Valid @RequestBody LoginUser loginUser, BindingResult bindingResult) {
+      // Input validation
+      if (bindingResult.hasErrors()) {
+         List<String> errors = bindingResult.getFieldErrors().stream()
+               .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+               .collect(Collectors.toList());
+         logger.error("Login validation failed: {}", errors);
+         return ResponseEntity.badRequest().body(new LoginResponse("Invalid input: " + String.join(", ", errors), null));
+      }
+
+      // Find user by email
+      User user = userService.findByEmail(loginUser.getEmail());
+      if (user == null) {
+         logger.warn("Login attempt failed: User not found with email {}", loginUser.getEmail());
+         return ResponseEntity.badRequest().body(new LoginResponse("Invalid email or password", null));
+      }
+
+      // Verify password
+      if (!passwordService.doPasswordMatch(loginUser.getPassword(), user.getPassword())) {
+         logger.warn("Login attempt failed: Invalid password for user {}", loginUser.getEmail());
+         return ResponseEntity.badRequest().body(new LoginResponse("Invalid email or password", null));
+      }
+
+      logger.info("User {} successfully logged in", loginUser.getEmail());
+      return ResponseEntity.ok(new LoginResponse("Login successful", user.getId()));
    }
 
 }
