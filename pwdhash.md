@@ -330,4 +330,37 @@ public class PasswordEncryptionService {
    - Test against common attacks
    - Verify salt/pepper effectiveness
    - Test error handling
-   - Verify configuration security 
+   - Verify configuration security
+
+## Implementation Summary (Current Project)
+
+- **Algorithm:** BCrypt (configurable strength via `application.properties`)
+- **Salt:** Automatically generated and stored by BCrypt (no manual storage required)
+- **Pepper:** Stored in `application.properties` as `PEPPER_KEY` and appended to the password before hashing
+- **Tested:** Registration and login flows have been tested and verified to work
+
+### Implementation Example (Current Project)
+```java
+// Get pepper from application.properties
+@Value("${PEPPER_KEY}")
+private String pepper;
+
+public String hashPassword(String password) {
+    // Pepper is appended to the password
+    String passwordWithPepper = password + pepper;
+    // BCrypt handles salt generation and storage internally
+    return bCryptPasswordEncoder.encode(passwordWithPepper);
+}
+
+public boolean verifyPassword(String rawPassword, String storedHash) {
+    // Append pepper to the raw password before verification
+    String rawWithPepper = rawPassword + pepper;
+    return bCryptPasswordEncoder.matches(rawWithPepper, storedHash);
+}
+```
+
+- **Salt Handling:** No need to store or retrieve salt manually; BCrypt embeds it in the hash.
+- **Pepper Handling:** Pepper is stored in `application.properties` as `PEPPER_KEY` (not as an environment variable).
+- **Configuration:**
+  - `PEPPER_KEY=yourPepperValue`
+  - `PASSWORD_HASH_STRENGTH=12` (example) 
