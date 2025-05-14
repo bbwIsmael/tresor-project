@@ -22,6 +22,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -82,13 +84,19 @@ public class UserController {
       //todo ergänzen
       System.out.println("UserController.createUser, password validation passed");
 
+      // Generate a unique salt for the user
+      byte[] saltBytes = new byte[16];
+      new SecureRandom().nextBytes(saltBytes);
+      String salt = Base64.getEncoder().encodeToString(saltBytes);
+
       //transform registerUser to user
       User user = new User(
             null,
             registerUser.getFirstName(),
             registerUser.getLastName(),
             registerUser.getEmail(),
-            passwordService.hashPassword(registerUser.getPassword())
+            passwordService.hashPassword(registerUser.getPassword()),
+            salt
             );
 
       User savedUser = userService.createUser(user);

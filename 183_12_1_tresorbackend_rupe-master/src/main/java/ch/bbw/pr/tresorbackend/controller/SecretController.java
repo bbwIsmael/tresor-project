@@ -6,7 +6,7 @@ import ch.bbw.pr.tresorbackend.model.EncryptCredentials;
 import ch.bbw.pr.tresorbackend.model.User;
 import ch.bbw.pr.tresorbackend.service.SecretService;
 import ch.bbw.pr.tresorbackend.service.UserService;
-import ch.bbw.pr.tresorbackend.util.EncryptUtil;
+import ch.bbw.pr.tresorbackend.model.EncryptUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -56,21 +56,26 @@ public class SecretController {
       System.out.println("SecretController.createSecret, input validation passed");
 
       User user = userService.findByEmail(newSecret.getEmail());
+      try {
+         EncryptUtil encryptUtil = new EncryptUtil(newSecret.getEncryptPassword(), user.getSalt());
 
-      //transfer secret and encrypt content
-      Secret secret = new Secret(
-            null,
-            user.getId(),
-            new EncryptUtil(newSecret.getEncryptPassword()).encrypt(newSecret.getContent().toString())
-      );
-      //save secret in db
-      secretService.createSecret(secret);
-      System.out.println("SecretController.createSecret, secret saved in db");
-      JsonObject obj = new JsonObject();
-      obj.addProperty("answer", "Secret saved");
-      String json = new Gson().toJson(obj);
-      System.out.println("SecretController.createSecret " + json);
-      return ResponseEntity.accepted().body(json);
+         //transfer secret and encrypt content
+         Secret secret = new Secret(
+               null,
+               user.getId(),
+               encryptUtil.encrypt(newSecret.getContent().toString())
+         );
+         secretService.createSecret(secret);
+         System.out.println("SecretController.createSecret, secret saved in db");
+         JsonObject obj = new JsonObject();
+         obj.addProperty("answer", "Secret saved");
+         String json = new Gson().toJson(obj);
+         System.out.println("SecretController.createSecret " + json);
+         return ResponseEntity.accepted().body(json);
+      } catch (Exception e) {
+         e.printStackTrace();
+         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Encryption error: " + e.getMessage());
+      }
    }
 
    // Build Get Secrets by userId REST API
@@ -79,23 +84,29 @@ public class SecretController {
    public ResponseEntity<List<Secret>> getSecretsByUserId(@RequestBody EncryptCredentials credentials) {
       System.out.println("SecretController.getSecretsByUserId " + credentials);
 
-      List<Secret> secrets = secretService.getSecretsByUserId(credentials.getUserId());
-      if (secrets.isEmpty()) {
-         System.out.println("SecretController.getSecretsByUserId secret isEmpty");
-         return ResponseEntity.notFound().build();
-      }
-      //Decrypt content
-      for(Secret secret: secrets) {
-         try {
-            secret.setContent(new EncryptUtil(credentials.getEncryptPassword()).decrypt(secret.getContent()));
-         } catch (EncryptionOperationNotPossibleException e) {
-            System.out.println("SecretController.getSecretsByUserId " + e + " " + secret);
-            secret.setContent("not encryptable. Wrong password?");
+      User user = userService.getUserById(credentials.getUserId());
+      try {
+         EncryptUtil encryptUtil = new EncryptUtil(credentials.getEncryptPassword(), user.getSalt());
+         List<Secret> secrets = secretService.getSecretsByUserId(credentials.getUserId());
+         if (secrets.isEmpty()) {
+            System.out.println("SecretController.getSecretsByUserId secret isEmpty");
+            return ResponseEntity.notFound().build();
          }
+         //Decrypt content
+         for(Secret secret: secrets) {
+            try {
+               secret.setContent(encryptUtil.decrypt(secret.getContent()));
+            } catch (EncryptionOperationNotPossibleException e) {
+               System.out.println("SecretController.getSecretsByUserId " + e + " " + secret);
+               secret.setContent("not encryptable. Wrong password?");
+            }
+         }
+         System.out.println("SecretController.getSecretsByUserId " + secrets);
+         return ResponseEntity.ok(secrets);
+      } catch (Exception e) {
+         e.printStackTrace();
+         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
       }
-
-      System.out.println("SecretController.getSecretsByUserId " + secrets);
-      return ResponseEntity.ok(secrets);
    }
 
    // Build Get Secrets by email REST API
@@ -105,24 +116,28 @@ public class SecretController {
       System.out.println("SecretController.getSecretsByEmail " + credentials);
 
       User user = userService.findByEmail(credentials.getEmail());
-
-      List<Secret> secrets = secretService.getSecretsByUserId(user.getId());
-      if (secrets.isEmpty()) {
-         System.out.println("SecretController.getSecretsByEmail secret isEmpty");
-         return ResponseEntity.notFound().build();
-      }
-      //Decrypt content
-      for(Secret secret: secrets) {
-         try {
-            secret.setContent(new EncryptUtil(credentials.getEncryptPassword()).decrypt(secret.getContent()));
-         } catch (EncryptionOperationNotPossibleException e) {
-            System.out.println("SecretController.getSecretsByEmail " + e + " " + secret);
-            secret.setContent("not encryptable. Wrong password?");
+      try {
+         EncryptUtil encryptUtil = new EncryptUtil(credentials.getEncryptPassword(), user.getSalt());
+         List<Secret> secrets = secretService.getSecretsByUserId(user.getId());
+         if (secrets.isEmpty()) {
+            System.out.println("SecretController.getSecretsByEmail secret isEmpty");
+            return ResponseEntity.notFound().build();
          }
+         //Decrypt content
+         for(Secret secret: secrets) {
+            try {
+               secret.setContent(encryptUtil.decrypt(secret.getContent()));
+            } catch (EncryptionOperationNotPossibleException e) {
+               System.out.println("SecretController.getSecretsByEmail " + e + " " + secret);
+               secret.setContent("not encryptable. Wrong password?");
+            }
+         }
+         System.out.println("SecretController.getSecretsByEmail " + secrets);
+         return ResponseEntity.ok(secrets);
+      } catch (Exception e) {
+         e.printStackTrace();
+         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
       }
-
-      System.out.println("SecretController.getSecretsByEmail " + secrets);
-      return ResponseEntity.ok(secrets);
    }
 
    // Build Get All Secrets REST API
@@ -182,30 +197,36 @@ public class SecretController {
       }
       //check if Secret can be decrypted with password
       try {
-         new EncryptUtil(newSecret.getEncryptPassword()).decrypt(dbSecrete.getContent());
-      } catch (EncryptionOperationNotPossibleException e) {
-         System.out.println("SecretController.updateSecret, invalid password");
+         EncryptUtil encryptUtil = new EncryptUtil(newSecret.getEncryptPassword(), user.getSalt());
+         encryptUtil.decrypt(dbSecrete.getContent());
+      } catch (Exception e) {
+         System.out.println("SecretController.updateSecret, invalid password or encryption error");
          JsonObject obj = new JsonObject();
-         obj.addProperty("answer", "Password not correct.");
+         obj.addProperty("answer", "Password not correct or encryption error.");
          String json = new Gson().toJson(obj);
          System.out.println("SecretController.updateSecret failed:" + json);
          return ResponseEntity.badRequest().body(json);
       }
       //modify Secret in db.
-      Secret secret = new Secret(
-            secretId,
-            user.getId(),
-            new EncryptUtil(newSecret.getEncryptPassword()).encrypt(newSecret.getContent().toString())
-      );
-      Secret updatedSecret = secretService.updateSecret(secret);
-      //save secret in db
-      secretService.createSecret(secret);
-      System.out.println("SecretController.updateSecret, secret updated in db");
-      JsonObject obj = new JsonObject();
-      obj.addProperty("answer", "Secret updated");
-      String json = new Gson().toJson(obj);
-      System.out.println("SecretController.updateSecret " + json);
-      return ResponseEntity.accepted().body(json);
+      try {
+         EncryptUtil encryptUtil = new EncryptUtil(newSecret.getEncryptPassword(), user.getSalt());
+         Secret secret = new Secret(
+               secretId,
+               user.getId(),
+               encryptUtil.encrypt(newSecret.getContent().toString())
+         );
+         Secret updatedSecret = secretService.updateSecret(secret);
+         secretService.createSecret(secret);
+         System.out.println("SecretController.updateSecret, secret updated in db");
+         JsonObject obj = new JsonObject();
+         obj.addProperty("answer", "Secret updated");
+         String json = new Gson().toJson(obj);
+         System.out.println("SecretController.updateSecret " + json);
+         return ResponseEntity.accepted().body(json);
+      } catch (Exception e) {
+         e.printStackTrace();
+         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Encryption error: " + e.getMessage());
+      }
    }
 
    // Build Delete Secret REST API

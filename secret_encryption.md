@@ -53,4 +53,27 @@
 
 **References:**
 - [Baeldung: Java AES Encryption/Decryption](https://www.baeldung.com/java-aes-encryption-decryption)
-- [OWASP: Cryptographic Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html) 
+- [OWASP: Cryptographic Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html)
+
+## 3. Essence of Implementation in This Project
+
+- **Key Derivation:**
+  - For each user, a unique random salt is generated and stored in the user table during registration.
+  - When encrypting or decrypting a secret, the user's password and their salt are combined using PBKDF2 to derive a strong AES key.
+
+- **Encryption/Decryption:**
+  - The `EncryptUtil` class handles AES encryption/decryption in CBC mode with PKCS5 padding.
+  - A random IV is generated for each encryption and prepended to the ciphertext (all Base64 encoded).
+  - The same process is used for decryption: extract IV, derive key, decrypt.
+
+- **Controller Logic:**
+  - When a secret is created, the backend receives the user's password and email, retrieves the salt, derives the key, and encrypts the secret content before storing it.
+  - When secrets are retrieved, the backend again derives the key from the provided password and stored salt, and decrypts the content before returning it.
+
+- **Security:**
+  - The salt is unique per user and never reused.
+  - The password is never stored, only used transiently for key derivation.
+  - All sensitive operations are wrapped in try-catch blocks to handle errors gracefully.
+
+- **References:**
+  - See `EncryptUtil.java` and `SecretController.java` for the core logic. 
