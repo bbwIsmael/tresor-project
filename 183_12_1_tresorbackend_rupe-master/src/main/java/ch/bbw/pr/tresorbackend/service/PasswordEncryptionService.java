@@ -21,9 +21,9 @@ public class PasswordEncryptionService {
         this.passwordEncoder = new BCryptPasswordEncoder(12); // Using strength of 12
         this.pepper = pepper;
         this.secureRandom = new SecureRandom();
-    }
+   }
 
-    public String hashPassword(String password) {
+   public String hashPassword(String password) {
         // Generate salt
         byte[] salt = new byte[16];
         secureRandom.nextBytes(salt);
@@ -40,5 +40,5 @@ public class PasswordEncryptionService {
         // Note: This method assumes the salt is stored with the hash
         // In a real implementation, you would need to extract the salt from the stored hash
         return passwordEncoder.matches(rawPassword + pepper, hashedPassword);
-    }
+   }
 }
