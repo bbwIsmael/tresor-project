@@ -201,136 +201,30 @@ public String hashPassword(String password) {
    - Monitor for brute force attacks
    - Log security events
 
-## 8. Implementation in Tresor Application
+## 8. Essence of Password Hash Implementation in Tresor Application
 
-### Current Implementation Details
+- **Algorithm:** Passwords are hashed using the bcrypt algorithm, which is industry-standard for secure password storage. Bcrypt automatically manages salt generation and storage within the hash string.
 
-#### PasswordEncryptionService
-```java
-@Service
-public class PasswordEncryptionService {
-    private final BCryptPasswordEncoder passwordEncoder;
-    private final String pepper;
-    private final SecureRandom secureRandom;
+- **Salt:** Each password hash includes a unique, randomly generated salt, ensuring that identical passwords result in different hashes. This salt is handled internally by bcrypt and does not require separate storage or management.
 
-    public PasswordEncryptionService(@Value("${PEPPER_KEY:defaultPepperKey}") String pepper) {
-        this.passwordEncoder = new BCryptPasswordEncoder(12); // Using strength of 12
-        this.pepper = pepper;
-        this.secureRandom = new SecureRandom();
-    }
+- **Pepper:** A secret pepper value is appended to the password before hashing. The pepper is stored securely in application configuration (not in the database or code) and is the same for all users. This adds an extra layer of security in case the database is compromised.
 
-    public String hashPassword(String password) {
-        // Generate salt
-        byte[] salt = new byte[16];
-        secureRandom.nextBytes(salt);
-        String saltString = Base64.getEncoder().encodeToString(salt);
+- **Hashing Process:**
+  1. The user provides a password.
+  2. The application appends the pepper to the password.
+  3. Bcrypt hashes the combined value, generating a unique salt for each password.
+  4. The resulting hash (which includes the salt) is stored in the database.
 
-        // Combine password, salt, and pepper
-        String combined = password + saltString + pepper;
+- **Verification:**
+  - During login, the pepper is appended to the provided password, and bcrypt verifies it against the stored hash.
 
-        // Hash using bcrypt
-        return passwordEncoder.encode(combined);
-    }
+- **Security Rationale:**
+  - Using bcrypt with a unique salt and a secret pepper protects against rainbow table attacks, brute-force attacks, and database leaks. The pepper should be rotated periodically and kept secret.
 
-    public boolean doPasswordMatch(String rawPassword, String hashedPassword) {
-        return passwordEncoder.matches(rawPassword + pepper, hashedPassword);
-    }
-}
-```
-
-### Implementation Features
-
-1. **Algorithm Choice**
-   - Using BCrypt with strength factor of 12
-   - Provides good balance between security and performance
-   - Built-in protection against rainbow table attacks
-
-2. **Salt Implementation**
-   - 16-byte (128-bit) random salt
-   - Generated using `SecureRandom`
-   - Base64 encoded for storage
-   - Unique per user
-
-3. **Pepper Implementation**
-   - Configured via environment variable `PEPPER_KEY`
-   - Fallback to default value for development
-   - Same pepper used for all users
-   - Stored separately from database
-
-4. **Security Measures**
-   - Combined use of salt and pepper
-   - Strong work factor (12) for bcrypt
-   - Secure random number generation
-   - Environment-based configuration
-
-### Usage in Application
-
-1. **User Registration**
-   ```java
-   User user = new User(
-       null,
-       registerUser.getFirstName(),
-       registerUser.getLastName(),
-       registerUser.getEmail(),
-       passwordService.hashPassword(registerUser.getPassword())
-   );
-   ```
-
-2. **Password Verification**
-   ```java
-   boolean isMatch = passwordService.doPasswordMatch(rawPassword, storedHash);
-   ```
-
-### Configuration Requirements
-
-1. **Environment Variables**
-   - `PEPPER_KEY`: Secret pepper value for password hashing
-   - Should be at least 32 bytes (256 bits)
-   - Must be kept secure and separate from code
-
-2. **Dependencies**
-   - Spring Security Crypto
-   - BCrypt implementation
-
-### Security Considerations
-
-1. **Current Implementation**
-   - Uses industry-standard bcrypt
-   - Implements both salt and pepper
-   - Secure random number generation
-   - Environment-based configuration
-
-2. **Areas for Improvement**
-   - Consider upgrading to Argon2 in future
-   - Implement pepper rotation mechanism
-   - Add password strength validation
-   - Implement rate limiting for login attempts
-
-3. **Maintenance Tasks**
-   - Regular pepper rotation
-   - Monitor for bcrypt vulnerabilities
-   - Update work factor as hardware improves
-   - Regular security audits
-
-### Testing Strategy
-
-1. **Unit Tests**
-   - Test password hashing
-   - Verify salt uniqueness
-   - Test password matching
-   - Verify pepper integration
-
-2. **Integration Tests**
-   - Test with UserController
-   - Verify database storage
-   - Test login flow
-   - Verify error handling
-
-3. **Security Tests**
-   - Test against common attacks
-   - Verify salt/pepper effectiveness
-   - Test error handling
-   - Verify configuration security
+- **Best Practices:**
+  - Never store plaintext passwords.
+  - Use environment variables or secure configuration for the pepper.
+  - Regularly review and update the hashing work factor as hardware improves.
 
 ## Implementation Summary (Current Project)
 
