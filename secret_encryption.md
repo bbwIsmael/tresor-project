@@ -58,8 +58,9 @@
 ## 3. Essence of Implementation in This Project
 
 - **Key Derivation:**
-  - For each user, a unique random salt is generated and stored in the user table during registration.
+  - For each user, a unique random salt is generated and stored in the user table during registration. **The salt must never be empty.**
   - When encrypting or decrypting a secret, the user's password and their salt are combined using PBKDF2 to derive a strong AES key.
+  - If the salt is missing (e.g., for users created before this implementation), encryption will fail with an error: `the salt parameter must not be empty`. In this case, delete and re-register the user to ensure a valid salt is present.
 
 - **Encryption/Decryption:**
   - The `EncryptUtil` class handles AES encryption/decryption in CBC mode with PKCS5 padding.
@@ -70,10 +71,16 @@
   - When a secret is created, the backend receives the user's password and email, retrieves the salt, derives the key, and encrypts the secret content before storing it.
   - When secrets are retrieved, the backend again derives the key from the provided password and stored salt, and decrypts the content before returning it.
 
+- **Frontend Error Handling:**
+  - The frontend now checks the response type before parsing, so backend error messages (including plain text errors) are displayed to the user. This helps with debugging issues like missing salt.
+
 - **Security:**
   - The salt is unique per user and never reused.
   - The password is never stored, only used transiently for key derivation.
   - All sensitive operations are wrapped in try-catch blocks to handle errors gracefully.
+
+- **Troubleshooting:**
+  - If you see `Encryption error: the salt parameter must not be empty`, ensure the user was registered after the salt implementation. Delete and re-register the user if necessary.
 
 - **References:**
   - See `EncryptUtil.java` and `SecretController.java` for the core logic. 

@@ -26,17 +26,23 @@ export const postSecret = async ({loginValues, content}) => {
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Server response failed.');
+        const contentType = response.headers.get('content-type');
+        let data;
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            data = await response.text();
         }
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error((data && data.message) || data || 'Server response failed.');
+        }
+
         console.log('Secret successfully posted:', data);
         return data;
     } catch (error) {
         console.error('Error posting secret:', error.message);
-        throw new Error('Failed to save secret. ' || error.message);
+        throw new Error('Failed to save secret. ' + error.message);
     }
 };
 
